@@ -10,7 +10,6 @@ exports.run = async (client, message, cmd, args, level) => { // eslint-disable-l
         // Close the collections before shutting down
         await client.settings.db.close();
         await client.pointsTable.db.close();
-        await client.profileTable.db.close();
         await client.cache.db.close();
         await client.logs.db.close();
 
@@ -19,6 +18,7 @@ exports.run = async (client, message, cmd, args, level) => { // eslint-disable-l
         process.exit(1);
 
     } catch (error) {
+        client.errlog(cmd, message, level, error);
         client.logger.error(client, `restart command failure:\n${error.stack}`);
         client.codeError(message);
     }
@@ -28,6 +28,7 @@ exports.conf = {
     enabled: true,
     guildOnly: false,
     aliases: ["reboot", "shutdown"],
+    arguments: [],
     permLevel: "Bot Admin"
 };
 

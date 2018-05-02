@@ -80,9 +80,8 @@ module.exports = (client) => {
     not use the command correctly
     */
     client.cmdError = async (message, cmd) => {
-        const settings = message.guild ? client.settings.get(message.guild.id) : client.config.defaultSettings;
-        await message.channel.send(`To use this command, use the following command structure: \`\`\`${settings.prefix}${cmd.help.usage}\`\`\`
-Examples:\`\`\`${settings.prefix}${cmd.help.examples.join(`\n${settings.prefix}`)}\`\`\``);
+        await message.channel.send(`To use this command, use the following command structure: \`\`\`${message.settings.prefix}${cmd.help.usage}\`\`\`
+Examples:\`\`\`${message.settings.prefix}${cmd.help.examples.join(`\n${message.settings.prefix}`)}\`\`\``);
 
         // Let's remove a point from the user for using the command incorrectly
         // This makes the message worth only a regular message
@@ -153,50 +152,9 @@ Examples:\`\`\`${settings.prefix}${cmd.help.examples.join(`\n${settings.prefix}`
 
 
     /*
-    --- SWGOH.GG PROFILE CHECK ---
-
-    Checks to see which method a user is inputing the profile and arguments and
-    returns those
-    */
-    client.profileCheck = (message, args) => {
-
-        const settings = message.guild ? client.settings.get(message.guild.id) : client.config.defaultSettings;
-
-        let profile;
-        let text;
-        let error;
-
-        if (args[0]) {
-            if (args[0].startsWith("~") || args[0].startsWith("--")) {
-                profile = args[0].replace("~", "").replace("--", "");
-                text = args.slice(1).join(" ");
-            } else if (args[0].startsWith("http")) {
-                const start = args[0].indexOf("/u/");
-                if (start == -1) error = ("There is no username in this URL.");
-                const end = args[0].lastIndexOf("/");
-                profile = args[0].slice(start + 3, end);
-                profile = profile.replace(/%20/g, " ");
-                text = args.slice(1).join(" ");
-            } else if (message.mentions.users.first() && message.mentions.users.first().bot === false) {
-                profile = client.profileTable.get(message.mentions.users.first().id);
-                text = args.slice(1).join(" ");
-            } else {
-                profile = client.profileTable.get(message.author.id);
-                text = args.join(" ");
-            }
-        } else {
-            profile = client.profileTable.get(message.author.id);
-            text = args.join(" ");
-        }
-
-        if (profile === undefined || profile.userId === undefined) error = `I can't find a profile for that username, try adding your swgoh.gg username with \`${settings.prefix}add\`.`;
-        return [encodeURI(profile), text, error];
-    };
-
-    /*
     --- CHARACTER CACHING ---
 
-    Addes profile, character and ships from swgoh.gg for quicker access.
+    Adds profile, character and ships from swgoh.gg for quicker access.
     First checks for last update and if updated, replace all data for that user.
 
     The variable input throttles the speed of the cache. By making input = "csm",
@@ -210,7 +168,7 @@ Examples:\`\`\`${settings.prefix}${cmd.help.examples.join(`\n${settings.prefix}`
         const moment = require("moment");
 
         try {
-            if (!id) id = client.profileTable.get(message.author.id);
+            if (!id) id = await client.doSQL("SELECT username FROM profiles WHERE discordId = ?", [message.author.id]);
             const pastProfile = client.cache.get(id + "_profile");
             const currentProfile = await swgoh.profile(id);
             const updated = moment(currentProfile.lastUpdatedUTC).fromNow();
@@ -245,6 +203,8 @@ Examples:\`\`\`${settings.prefix}${cmd.help.examples.join(`\n${settings.prefix}`
 
             return [username, updated];
         } catch (error) {
+            const level = client.permlevel(message);
+            client.errlog("cacheCheck", message, level, error);
             client.logger.error(client, `cacheCheck failure\n${error.stack}`);
         }
     };
@@ -289,8 +249,7 @@ Examples:\`\`\`${settings.prefix}${cmd.help.examples.join(`\n${settings.prefix}`
         // Also check for message.guild
         if (message.author.bot || !message.guild) return;
 
-        const settings = client.settings.get(message.guild.id);
-        if (settings.pointsEnabled != "true") return;
+        if (message.settings.pointsEnabled != "true") return;
 
         const guildUser = message.guild.id + message.author.id;
         let userPoints = Number(client.pointsTable.get(guildUser));
@@ -299,7 +258,7 @@ Examples:\`\`\`${settings.prefix}${cmd.help.examples.join(`\n${settings.prefix}`
         // and assign the lowest roleReward
         if (!userPoints) {
             userPoints = 0;
-            if (settings.roleRewardsEnabled === "true") {
+            if (message.settings.roleRewardsEnabled === "true") {
                 const roleName = client.config.roleRewards.find(l => l.level === userPoints).name;
                 client.assignRole(message.member, roleName);
             }
@@ -320,11 +279,11 @@ Examples:\`\`\`${settings.prefix}${cmd.help.examples.join(`\n${settings.prefix}`
             let roleName = client.config.roleRewards.find(l => l.level === newLevel);
             if (roleName && roleName != undefined) roleName = roleName.name;
             const congratsMessage = `Congratulations ${message.guild.member(message.author)}! You're now **level ${newLevel}**! 🎉`;
-            if (!roleName || roleName === undefined || settings.roleRewardsEnabled != "true" || !message.member.guild.members.get(client.user.id).permissions.has("MANAGE_ROLES_OR_PERMISSIONS")) {
+            if (!roleName || roleName === undefined || message.settings.roleRewardsEnabled != "true" || !message.member.guild.members.get(client.user.id).permissions.has("MANAGE_ROLES_OR_PERMISSIONS")) {
                 if (message.channel.permissionsFor(client.user).has("SEND_MESSAGES")) {
                     await message.channel.send(congratsMessage);
                 }
-            } else if (settings.roleRewardsEnabled === "true") {
+            } else if (message.settings.roleRewardsEnabled === "true") {
                 client.assignRole(message.member, roleName);
                 client.removePointsRole(message.member, newLevel);
                 if (message.channel.permissionsFor(client.user).has("SEND_MESSAGES")) {
@@ -368,8 +327,7 @@ Examples:\`\`\`${settings.prefix}${cmd.help.examples.join(`\n${settings.prefix}`
                         permissions: []
                     });
                 } catch (error) {
-                    client.logger.error(client, `Unable to assign user role\n${error.stack}`);
-                    return;
+                    return client.logger.error(client, `Unable to assign user role\n${error.stack}`);
                 }
             }
 
@@ -543,18 +501,18 @@ Examples:\`\`\`${settings.prefix}${cmd.help.examples.join(`\n${settings.prefix}`
     };
 
     // These 2 process methods will catch exceptions and give *more details* about the error and stack trace.
-    process.on("uncaughtException", (err) => {
+    process.on("uncaughtException", (error) => {
 
-        const errorMsg = err.stack.replace(new RegExp(`${__dirname}/`, "g"), "./");
-        console.error("Uncaught Exception: ", errorMsg);
+        const errorMsg = error.stack.replace(new RegExp(`${__dirname}/`, "g"), "./");
+        console.log("Uncaught Exception: ", errorMsg);
         // Always best practice to let the code crash on uncaught exceptions.
         // Because you should be catching them anyway.
         process.exit(1);
     });
 
-    process.on("unhandledRejection", err => {
+    process.on("unhandledRejection", error => {
 
-        console.error(`Unhandled rejection: ${err}`);
+        console.log(`Unhandled rejection: ${error}`);
     });
 
 };

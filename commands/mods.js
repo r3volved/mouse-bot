@@ -1,5 +1,9 @@
 // These are the ID codes for the different mod emojis hosted
 // on the Mouse Bot Support Server
+
+const { RichEmbed } = require("discord.js");
+const fuzzy = require("fuzzy-predicate");
+
 const modsEmojis = {
     // Slots
     "Square": "418109875395231755",
@@ -43,10 +47,6 @@ function getObjects(obj, key, val) {
     }
     return objects;
 }
-
-
-const { RichEmbed } = require("discord.js");
-const fuzzy = require("fuzzy-predicate");
 
 exports.run = async (client, message, cmd, args, level) => { // eslint-disable-line no-unused-vars
 
@@ -136,6 +136,7 @@ Galactic Power: ${lookup[i].galacticPower.toLocaleString()} *(${Math.round(looku
         await chMessage.edit("Here's what I found:");
 
     } catch (error) {
+        client.errlog(cmd, message, level, error);
         client.logger.error(client, `mods command failure:\n${error.stack}`);
         client.codeError(message);
     }
@@ -146,6 +147,7 @@ exports.conf = {
     enabled: true,
     guildOnly: false,
     aliases: ["character", "ch", "mod"],
+    arguments: ["user mention"],
     permLevel: "User"
 };
 
@@ -153,6 +155,6 @@ exports.help = {
     name: "mods",
     category: "Game",
     description: "Looks up character stats and mods on swgoh.gg",
-    usage: "mods ~[swgoh.gg-username] <character>",
+    usage: "mods <name|nickname>",
     examples: ["mods cls", "mods leia", "ch ~necavit r2", "ch han"]
 };

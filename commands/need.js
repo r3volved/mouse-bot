@@ -6,6 +6,17 @@ const { RichEmbed } = require("discord.js");
 const shipments = require("../modules/shipments.js");
 const fuzzy = require("fuzzy-predicate");
 
+const shardsRemainingAtStarLevel = {
+    0: 330,
+    1: 320,
+    2: 305,
+    3: 280,
+    4: 250,
+    5: 185,
+    6: 100,
+    7: 0
+};
+
 exports.run = async (client, message, cmd, args, level) => { // eslint-disable-line no-unused-vars
 
     try {
@@ -61,37 +72,45 @@ exports.run = async (client, message, cmd, args, level) => { // eslint-disable-l
         if (searchTerm == "") embed.setAuthor(`${id.toProperCase()}'s Needs`);
         if (searchTerm.toLowerCase() == "battles") embed.setAuthor(`${id.toProperCase()}'s Needs for Light & Dark Side Battles`);
 
-        let charDescription = "";
-        let shipDescription = "";
+        const charArray = [];
+        const shipArray = [];
+        const totalShards = (chLookup.length + sLookup.length) * shardsRemainingAtStarLevel[0];
+        let shardsRemaining = totalShards; // start out with the max and subtract as we go
 
-        // Now we crosscheck with the swgoh.gg account and update the embeds
-        for (let i = 0; i < chLookup.length; i++) {
 
-            const foundCharacter = characterCollection.find(c => c.description === chLookup[i].name);
+        const iterateLookup = function(lookupList, accountCollection, resultArray) {
+            // Now we crosscheck with the swgoh.gg account and update the embeds
+            for (let i = 0; i < lookupList.length; i++) {
+                const charName = lookupList[i].name;
 
-            if (foundCharacter) {
-                const rank = Number(foundCharacter.star);
-                if (rank < 7) charDescription = `${charDescription}\n${client.checkClones(chLookup[i].name)} (${rank})`;
-            } else {
-                charDescription = `${charDescription}\n**${chLookup[i].name}** (n.a.)`;
+                const foundCharacter = accountCollection.find(c => c.description === charName);
+                const rank = (foundCharacter) ? Number(foundCharacter.star) : 0;
+                const rankDisplay = rank || "n.a.";
+
+                if (rank < 7) {
+                    resultArray.push(`${client.checkClones(charName)} (${rankDisplay})`);
+                }
+
+                shardsRemaining -= shardsRemainingAtStarLevel[rank];
             }
-        }
+        };
 
-        for (let j = 0; j < sLookup.length; j++) {
+        iterateLookup(chLookup, characterCollection, charArray);
+        iterateLookup(sLookup, shipCollection, shipArray);
 
-            const foundShip = shipCollection.find(s => s.description === sLookup[j].name);
+        const charDescription = "" + charArray.join("\n");
+        const shipDescription = "" + shipArray.join("\n");
 
-            if (foundShip) {
-                const rank = Number(foundShip.star);
-                if (rank < 7 && rank != 0) shipDescription = `${shipDescription}\n${foundShip.description.replace(/\\/g, "'")} (${rank})`;
-                if (rank === 0) shipDescription = `${shipDescription}\n**${sLookup[j].name}** (n.a.)`; // Pulls up data with rank 0 as well
-            } else {
-                shipDescription = `${shipDescription}\n**${sLookup[j].name}** (n.a.)`;
-            }
-        }
-
-        if (charDescription === "" && shipDescription === "") embed.setDescription(`Nothing found!
+        if (charDescription === "" && shipDescription === "" && shopCheck) embed.setDescription(`\`100% complete\`
+Congrats! You've maxed out all the shards in the shop!
+Now go find another one to finish.`);
+        else if (charDescription === "" && shipDescription === "") {
+            embed.setDescription(`Nothing found!
 Either all characters/ships have been maxed out, or I cannot find a shop or faction for __${searchTerm}__.`);
+        } else {
+            const storeProgress = ((shardsRemaining / totalShards) * 100).toFixed(1);
+            embed.setDescription(`\`~${storeProgress}% complete\``);
+        }
 
         // Check if fields are too long before sending
         if (charDescription != "") {
@@ -106,6 +125,7 @@ Either all characters/ships have been maxed out, or I cannot find a shop or fact
         await needMessage.edit({ embed });
 
     } catch (error) {
+        client.errlog(cmd, message, level, error);
         client.logger.error(client, `need command failure:\n${error.stack}`);
         client.codeError(message);
     }
@@ -116,6 +136,7 @@ exports.conf = {
     enabled: true,
     guildOnly: false,
     aliases: ["shops", "shipment", "shipments"],
+    arguments: ["user mention"],
     permLevel: "User"
 };
 
@@ -123,6 +144,6 @@ exports.help = {
     name: "need",
     category: "Game",
     description: "Let user know which characters they need in shipments",
-    usage: "need ~[swgoh.gg-username] <shop/faction>",
+    usage: "need <show|faction|name|nickname>",
     examples: ["need gw", "need jedi", "need ~necavit fleet"]
 };

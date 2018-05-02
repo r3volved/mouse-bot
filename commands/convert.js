@@ -54,7 +54,8 @@ exports.run = async (client, message, cmd, args, level) => { // eslint-disable-l
         }
 
     } catch (error) {
-        client.logger.error(client, `convert command failure:\n${error.stack}`);
+        client.errlog(cmd, message, level, error);
+        client.logger.error(client, `convert command failure\n${error.stack}`);
         client.codeError(message);
     }
 
@@ -64,13 +65,14 @@ exports.conf = {
     enabled: true,
     guildOnly: false,
     aliases: [],
+    arguments: [],
     permLevel: "User"
 };
 
 exports.help = {
     name: "convert",
     category: "Game",
-	description: "Converts a raid damage to percentage (or vice versa)",
-	usage: "convert <number> <raid> <p1/p2/p3/p4>",
+	description: "Converts heroic raid damage to percentage (or vice versa)",
+	usage: "convert <number> <rancor|tank> <p1|p2|p3|p4>",
     examples: ["convert 12.69% pit p2", "convert p1 240,000 pit", "convert tank p2 1287"]
 };

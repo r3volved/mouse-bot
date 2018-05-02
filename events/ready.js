@@ -1,5 +1,16 @@
 module.exports = async client => {
 
+    // Test database connection before we give the ready signal
+    try {
+        const result = await client.doSQL(
+            "INSERT INTO botlog (timestamp, type, details) VALUES (?, ?, ?)",
+            [new Date(), "log", `Connected to mySQL DB as ${client.user.username.toProperCase()}`]
+        );
+        if (!result) client.logger.warn(client, "Couldn't connect to mySQL DB");
+    } catch (error) {
+        return client.logger.error(client, `Didn't connect to mySQL DB:\n${error.stack}`);
+    }
+
     await client.wait(1000); // eslint-disable-line no-undef
 
     // Both `wait` and `client.log` are in `./modules/functions`.
@@ -9,14 +20,4 @@ module.exports = async client => {
     client.guilds.filter(g => !client.settings.has(g.id)).forEach(g => client.settings.set(g.id, client.config.defaultSettings));
 
     client.user.setActivity("SWGoH");
-
-    // Create an invite link. Turned off so it doesn't go off every time a ready
-    // even is triggered. If you need it, you can turn it on
-
-    // try {
-    //     const link = await client.generateInvite(["ADMINISTRATOR"]);
-    //     client.logger.log(client, link);
-    // } catch (e) {
-    //     console.log(e.stack);
-    // }
 };

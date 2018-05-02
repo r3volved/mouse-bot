@@ -28,6 +28,7 @@ const client = new Discord.Client();
 // Here we load the config and functions files
 client.config = require("./config.js");
 require("./modules/functions.js")(client);
+require("./modules/db-handler.js")(client);
 
 // Also the Logger
 client.logger = require("./modules/logger");
@@ -38,12 +39,12 @@ client.commands = new Enmap();
 client.aliases = new Enmap();
 client.swgohData = new Enmap();
 
-// Setting up the Enhanced Map module
+// Setting up the databases
 client.settings = new Enmap({provider: new EnmapLevel({ name: "settings" })});
 client.pointsTable = new Enmap({provider: new EnmapLevel({ name: "points" })});
-client.profileTable = new Enmap({provider: new EnmapLevel({ name: "profiles" })});
 client.cache = new Enmap({provider: new EnmapLevel({ name: "cache" })});
 client.logs = new Enmap({ provider: new EnmapLevel({ name: "log" })});
+
 
 const init = async () => {
 
